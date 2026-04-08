@@ -53,6 +53,8 @@ def get_permission_query_conditions(user, doctype=None):
 			"Customize Form",
 			"Property Setter",
 			"Custom Field",
+			"Company",
+			"DefaultValue",
 		]
 
 		if doctype in system_doctypes:
@@ -66,16 +68,20 @@ def get_permission_query_conditions(user, doctype=None):
 		if not hasattr(frappe, "db") or not frappe.db:
 			return ""
 
+		# FIX: Check if this doctype has a company field FIRST
+		# before calling get_user_company() to prevent infinite recursion
+		# When get_user_company() falls back to frappe.get_list("Company"),
+		# it triggers get_permission_query_conditions("Company") again,
+		# creating an infinite loop that crashes the DB connection.
+		company_field_name = get_company_field_name(doctype)
+
+		if not company_field_name:
+			return ""
+
 		# Get user's selected/default company
 		user_company = get_user_company()
 
 		if not user_company:
-			return ""
-
-		# Check if this doctype has a company field
-		company_field_name = get_company_field_name(doctype)
-
-		if not company_field_name:
 			return ""
 
 		# Return the condition to filter by company
@@ -112,10 +118,15 @@ def get_user_company():
 		if default_company:
 			return default_company
 
-		# If no default, get first available company user has access to
-		if hasattr(frappe, "get_list"):
-			companies = frappe.get_list("Company", fields=["name"], limit=1)
-
+		# FIX: Use frappe.db.sql directly instead of frappe.get_list
+		# to avoid recursive permission_query_conditions calls.
+		# frappe.get_list("Company") would trigger get_permission_query_conditions
+		# for "Company" doctype, which calls get_user_company() again → infinite loop.
+		if hasattr(frappe, "db") and frappe.db:
+			companies = frappe.db.sql(
+				"SELECT name FROM `tabCompany` ORDER BY creation LIMIT 1",
+				as_dict=True
+			)
 			if companies:
 				return companies[0].name
 
