@@ -176,7 +176,6 @@ permission_query_conditions = {
 #
 override_whitelisted_methods = {
 	"frappe.desk.search.search_link": "company_global_filter.hook_functions.search_link.search_link",
-	"frappe.desk.form.load.getdoc": "company_global_filter.hook_functions.getdoc.getdoc",
 }
 #
 # each overriding function accepts a `data` argument;
